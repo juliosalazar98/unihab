@@ -238,13 +238,15 @@ const olvidoPassword = async (req, res) => {
       where: { email: email.trim().toLowerCase(), usado: false },
       data: { usado: true }
     })
-    await prisma.codigoRecuperacion.create({
-      data: {
-        email: email.trim().toLowerCase(),
-        codigo,
-        expiresAt,
-      }
-    })
+       // El código se almacena cifrado; al usuario se le envía el valor en claro.
+       const codigoHash = await bcrypt.hash(codigo, 10)
+       await prisma.codigoRecuperacion.create({
+         data: {
+           email: email.trim().toLowerCase(),
+           codigo: codigoHash,
+           expiresAt,
+         }
+       })
     await transporter.sendMail({
       from: `"UniHab" <${process.env.MAIL_USER}>`,
       to: email.trim(),
@@ -284,7 +286,6 @@ const resetPassword = async (req, res) => {
     const registro = await prisma.codigoRecuperacion.findFirst({
       where: {
         email: email.trim().toLowerCase(),
-        codigo: codigo.trim(),
         usado: false,
         expiresAt: { gt: new Date() }
       },
@@ -292,6 +293,10 @@ const resetPassword = async (req, res) => {
     })
 
     if (!registro)
+      return error(res, 'Código inválido o expirado', 400)
+
+    const codigoValido = await bcrypt.compare(codigo.trim(), registro.codigo)
+    if (!codigoValido)
       return error(res, 'Código inválido o expirado', 400)
 
     const hash = await bcrypt.hash(nuevaPassword, 10)

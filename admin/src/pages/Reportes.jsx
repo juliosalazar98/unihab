@@ -73,8 +73,8 @@ function ModalDetalleReporte({ reporte, onClose, onDescartar, onSancionar, onAce
 
           <div>
             <p className="text-xs text-gray-500">Reportado por</p>
-            <p className="text-sm font-medium text-gray-800">{reporte.reportante?.nombre}</p>
-            <p className="text-xs text-gray-400">{reporte.reportante?.email}</p>
+            <p className="text-sm font-medium text-gray-800">{reporte.reportante?.nombre ?? 'Usuario eliminado'}</p>
+            <p className="text-xs text-gray-400">{reporte.reportante?.email ?? '—'}</p>
           </div>
 
           <div>
@@ -358,8 +358,8 @@ export default function Reportes() {
                         <p className="text-xs text-gray-400">{r.inmueble?.propietario?.nombre}</p>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="text-sm text-gray-700">{r.reportante?.nombre}</p>
-                        <p className="text-xs text-gray-400">{r.reportante?.email}</p>
+                      <p className="text-sm text-gray-700">{r.reportante?.nombre ?? 'Usuario eliminado'}</p>
+                        <p className="text-xs text-gray-400">{r.reportante?.email ?? '—'}</p>
                       </td>
                       <td className="px-4 py-3">
                         <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700">

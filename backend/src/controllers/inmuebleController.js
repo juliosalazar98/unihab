@@ -123,7 +123,11 @@ const obtenerInmuebles = async (req, res) => {
     page = 1, limit = 10
   } = req.query
 
-  const filtros = { aprobado: true, disponible: true }
+  const filtros = {
+    aprobado: true,
+    disponible: true,
+    propietario: { activo: true },
+  }
   if (zona) filtros.zona = { contains: zona, mode: 'insensitive' }
   if (tipo) filtros.tipo = tipo
   if (tipoOferta) filtros.tipoOferta = tipoOferta
@@ -203,8 +207,8 @@ const obtenerInmueble = async (req, res) => {
   const { id } = req.params
 
   try {
-    const inmueble = await prisma.inmueble.findUnique({
-      where: { id: parseInt(id) },
+    const inmueble = await prisma.inmueble.findFirst({
+      where: { id: parseInt(id), propietario: { activo: true } },
       include: {
         imagenes: true,
         propietario: {

@@ -1,6 +1,11 @@
 const prisma = require('../config/prisma')
 const { ok, error } = require('../utils/respuesta')
+const { cloudinary } = require('../config/multer')
 
+const publicIdDesdeUrl = (url) => {
+  const m = String(url || '').match(/\/upload\/(?:v\d+\/)?(.+)\.[a-zA-Z]+(?:\?.*)?$/)
+  return m ? m[1] : null
+}
 const obtenerUsuarios = async (req, res) => {
   const {
     rol, activo, buscar, verificacion,
@@ -111,8 +116,10 @@ const eliminarUsuario = async (req, res) => {
   const { id } = req.params
 
   try {
+    const usuarioId = parseInt(id)
     const usuario = await prisma.usuario.findUnique({
-      where: { id: parseInt(id) }
+      where: { id: usuarioId },
+      include: { inmuebles: { include: { imagenes: true } } },
     })
 
     if (!usuario) return error(res, 'Usuario no encontrado', 404)
@@ -120,8 +127,24 @@ const eliminarUsuario = async (req, res) => {
       return error(res, 'No se puede eliminar un administrador', 403)
     }
 
-    await prisma.usuario.delete({ where: { id: parseInt(id) } })
-    return ok(res, null, 'Usuario eliminado correctamente')
+    // Imágenes de sus publicaciones: el publicId ya está guardado.
+    const ids = usuario.inmuebles
+      .flatMap(inm => inm.imagenes)
+      .map(img => img.publicId)
+      .filter(Boolean)
+
+    // La foto de perfil solo guarda la URL, de ahí se extrae el publicId.
+    if (usuario.fotoPerfil) {
+      const m = usuario.fotoPerfil.match(/\/upload\/(?:v\d+\/)?(.+)\.[a-zA-Z]+(?:\?.*)?$/)
+      if (m) ids.push(m[1])
+    }
+
+    await Promise.all(
+      ids.map(pid => cloudinary.uploader.destroy(pid).catch(console.error))
+    )
+
+    await prisma.usuario.delete({ where: { id: usuarioId } })
+    return ok(res, null, `Usuario eliminado. Se liberaron ${ids.length} imágenes.`)
   } catch (e) {
     console.error(e)
     return error(res, 'Error al eliminar usuario')

@@ -56,7 +56,7 @@ export default function Dashboard() {
   const exportarGeneral = () => descargarPdf('/reporteria/general', {}, 'general')
 
   return (
-    <Layout titulo="Dashboard">
+    <Layout titulo="Panel principal">
       <div className="space-y-6">
 
         <div>

@@ -289,7 +289,7 @@ model Inmueble {
   reglasComunes           String?
   observaciones           String?
 
-  propietario Usuario  @relation(fields: [propietarioId], references: [id])
+    propietario Usuario  @relation(fields: [propietarioId], references: [id], onDelete: Cascade)
   imagenes    Imagen[]
    apelacion    Apelacion?
   solicitudes Solicitud[]
@@ -338,7 +338,7 @@ model Solicitud {
 model Reporte {
   id            Int           @id @default(autoincrement())
   inmuebleId    Int
-  reportanteId  Int
+  reportanteId  Int?
   motivo        String
   comentario    String?
   estado        EstadoReporte @default(PENDIENTE)
@@ -347,7 +347,7 @@ model Reporte {
   resueltoEn    DateTime?
 
   inmueble   Inmueble @relation(fields: [inmuebleId], references: [id], onDelete: Cascade)
-  reportante Usuario  @relation("ReportesEnviados", fields: [reportanteId], references: [id], onDelete: Cascade)
+  reportante Usuario?  @relation("ReportesEnviados", fields: [reportanteId], references: [id], onDelete: SetNull)
 
    apelacion Apelacion?
 
