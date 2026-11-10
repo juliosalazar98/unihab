@@ -1,0 +1,26 @@
+# Dependencias
+node_modules/
+**/node_modules/
+
+# Variables de entorno y credenciales
+.env
+**/.env
+*.env.local
+google-services.json
+**/google-services.json
+*.keystore
+*.jks
+
+# Compilados
+build/
+dist/
+**/build/
+**/dist/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.log

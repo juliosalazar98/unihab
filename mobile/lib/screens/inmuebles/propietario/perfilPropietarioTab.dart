@@ -1,0 +1,508 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
+import '/config/constantes.dart';
+import '/providers/authProvider.dart';
+import 'package:http_parser/http_parser.dart';
+import 'package:image_picker/image_picker.dart';
+import '/models/usuario.dart';
+import 'verificarCuentaScreen.dart';
+import 'misDatosPropietarioScreen.dart';
+import 'historialSolicitudesScreen.dart';
+import 'configuracionScreen.dart';
+
+class PerfilPropietarioTab extends StatefulWidget {
+  const PerfilPropietarioTab({super.key});
+
+  @override
+  State<PerfilPropietarioTab> createState() => _PerfilPropietarioTabState();
+}
+
+class _PerfilPropietarioTabState extends State<PerfilPropietarioTab> {
+  static const _verde = Color(0xFF10B981);
+  static const _verdeOscuro = Color(0xFF059669);
+  static const _verdeClaro = Color(0xFFECFDF5);
+  static const _grisClaro = Color(0xFFF3F4F6);
+  static const _gris = Color(0xFF9CA3AF);
+  static const _textoOscuro = Color(0xFF1F2937);
+  static const _rojo = Color(0xFFEF4444);
+
+  Map<String, dynamic>? _perfil;
+  bool _cargando = true;
+  bool _subiendoFoto = false;
+  bool _eliminandoFoto = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_cargar);
+  }
+
+  Future<void> _cargar() async {
+    setState(() => _cargando = true);
+    try {
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      final res = await http.get(
+        Uri.parse('${Constantes.baseUrl}/auth/perfil'),
+        headers: {'Authorization': 'Bearer ${auth.token}'},
+      );
+      final data = jsonDecode(res.body);
+      if (data['ok'] == true && mounted) {
+        setState(() => _perfil = data['datos'] as Map<String, dynamic>);
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _cargando = false);
+  }
+
+  Future<void> _subirFoto() async {
+    final file = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (file == null || !mounted) return;
+
+    setState(() => _subiendoFoto = true);
+    try {
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      final request = http.MultipartRequest(
+          'PATCH', Uri.parse('${Constantes.baseUrl}/auth/foto-perfil'))
+        ..headers['Authorization'] = 'Bearer ${auth.token}'
+        ..files.add(await http.MultipartFile.fromPath('foto', file.path,
+            contentType: MediaType('image', 'jpeg')));
+
+      final res = await request.send();
+      final body = jsonDecode(await res.stream.bytesToString());
+
+      if (body['ok'] == true && mounted) {
+        auth.actualizarUsuario(Usuario.fromJson(body['datos']));
+        setState(() {
+          _perfil = {
+            ..._perfil ?? {},
+            'fotoPerfil': body['datos']['fotoPerfil']
+          };
+        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Foto de perfil actualizada ✓'),
+          backgroundColor: _verde,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12))),
+        ));
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Error al subir la foto'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.all(16),
+        ));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Error de conexión'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.all(16),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _subiendoFoto = false);
+    }
+  }
+
+  Future<void> _eliminarFoto() async {
+    setState(() => _eliminandoFoto = true);
+    try {
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      final res = await http.delete(
+        Uri.parse('${Constantes.baseUrl}/auth/foto-perfil'),
+        headers: {'Authorization': 'Bearer ${auth.token}'},
+      );
+      final body = jsonDecode(res.body);
+      if (body['ok'] == true && mounted) {
+        auth.actualizarUsuario(Usuario.fromJson(body['datos']));
+        setState(() {
+          _perfil = {..._perfil ?? {}, 'fotoPerfil': null};
+        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Foto de perfil eliminada'),
+          backgroundColor: _verde,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12))),
+        ));
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(body['mensaje'] ?? 'Error al quitar la foto'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+        ));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Error de conexión'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.all(16),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _eliminandoFoto = false);
+    }
+  }
+
+  void _confirmarEliminarFoto() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(children: [
+          Icon(Icons.warning_amber_outlined, color: _rojo, size: 20),
+          SizedBox(width: 8),
+          Text('Quitar foto', style: TextStyle(fontSize: 16)),
+        ]),
+        content: const Text('¿Seguro que querés quitar tu foto de perfil?',
+            style: TextStyle(fontSize: 14)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _eliminarFoto();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: _rojo),
+            child: const Text('Quitar', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _mostrarOpcionesFoto(bool tieneFoto) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                  color: const Color(0xFFE5E7EB),
+                  borderRadius: BorderRadius.circular(2)),
+            ),
+            ListTile(
+              leading:
+                  const Icon(Icons.photo_camera_outlined, color: _verdeOscuro),
+              title: const Text('Cambiar foto',
+                  style: TextStyle(fontWeight: FontWeight.w500)),
+              onTap: () {
+                Navigator.pop(context);
+                _subirFoto();
+              },
+            ),
+            if (tieneFoto)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: _rojo),
+                title: const Text('Quitar foto',
+                    style:
+                        TextStyle(color: _rojo, fontWeight: FontWeight.w500)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _confirmarEliminarFoto();
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_cargando) {
+      return const Center(child: CircularProgressIndicator(color: _verde));
+    }
+
+    final nombre = _perfil?['nombre'] as String? ?? '';
+    final email = _perfil?['email'] as String? ?? '';
+    final foto = _perfil?['fotoPerfil'] as String?;
+    final verificado = _perfil?['verificado'] == true;
+    final estadoVer = _perfil?['estadoVerificacion'] as String?;
+
+    return RefreshIndicator(
+      color: _verde,
+      onRefresh: _cargar,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 40),
+        children: [
+          Center(
+              child: Column(children: [
+            GestureDetector(
+              onTap: (_subiendoFoto || _eliminandoFoto)
+                  ? null
+                  : () => _mostrarOpcionesFoto(foto != null && foto.isNotEmpty),
+              child: Stack(alignment: Alignment.center, children: [
+                CircleAvatar(
+                  radius: 50,
+                  backgroundColor: _verdeClaro,
+                  backgroundImage: (foto != null && foto.isNotEmpty)
+                      ? NetworkImage(foto)
+                      : null,
+                  child: (foto == null || foto.isEmpty)
+                      ? Text(nombre.isNotEmpty ? nombre[0].toUpperCase() : 'P',
+                          style: const TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.bold,
+                              color: _verdeOscuro))
+                      : null,
+                ),
+                if (_subiendoFoto || _eliminandoFoto)
+                  const Positioned.fill(
+                      child: CircularProgressIndicator(
+                          color: _verdeOscuro, strokeWidth: 2)),
+                if (!_subiendoFoto && !_eliminandoFoto)
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                          color: _verde, shape: BoxShape.circle),
+                      child: const Icon(Icons.camera_alt,
+                          color: Colors.white, size: 14),
+                    ),
+                  ),
+              ]),
+            ),
+            const SizedBox(height: 14),
+            Text(nombre,
+                style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: _textoOscuro)),
+            const SizedBox(height: 4),
+            Text(email, style: const TextStyle(fontSize: 13, color: _gris)),
+            const SizedBox(height: 12),
+            _buildBadgeVerificacion(verificado, estadoVer),
+          ])),
+          const SizedBox(height: 28),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4))
+              ],
+            ),
+            child: Column(children: [
+              _buildTile(
+                icono: Icons.person_outline,
+                label: 'Mis Datos Personales',
+                subtitulo: 'Teléfono y contraseña',
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          MisDatosPropietarioScreen(perfil: _perfil ?? {}),
+                    )).then((_) => _cargar()),
+              ),
+              const Divider(height: 1, indent: 56),
+              _buildTile(
+                icono: Icons.shield_outlined,
+                label: 'Verificar mi Cuenta',
+                subtitulo: verificado
+                    ? 'Cuenta verificada ✓'
+                    : (estadoVer == 'PENDIENTE'
+                        ? 'En revisión por el equipo'
+                        : 'Subí tu carnet de identidad'),
+                color: verificado ? _verde : null,
+                onTap: verificado
+                    ? null
+                    : () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const VerificarCuentaScreen()),
+                        ).then((_) => _cargar()),
+              ),
+              const Divider(height: 1, indent: 56),
+              _buildTile(
+                icono: Icons.history,
+                label: 'Historial de Solicitudes',
+                subtitulo: 'Solicitudes atendidas y rechazadas',
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const HistorialSolicitudesScreen(),
+                    )),
+              ),
+              const Divider(height: 1, indent: 56),
+              _buildTile(
+                icono: Icons.settings_outlined,
+                label: 'Configuración',
+                subtitulo: 'Notificaciones y preferencias',
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const ConfiguracionScreen())),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4))
+              ],
+            ),
+            child: ListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              leading: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                    color: const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.logout, color: _rojo, size: 18),
+              ),
+              title: const Text('Cerrar Sesión',
+                  style: TextStyle(
+                      color: _rojo, fontWeight: FontWeight.w600, fontSize: 14)),
+              onTap: () => _confirmarLogout(context),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: Text('UniHab v1.0.0',
+                style: TextStyle(fontSize: 11, color: Colors.grey[400])),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBadgeVerificacion(bool verificado, String? estado) {
+    late Color color, bgColor;
+    late IconData icono;
+    late String label;
+
+    if (verificado) {
+      color = _verdeOscuro;
+      bgColor = _verdeClaro;
+      icono = Icons.verified_outlined;
+      label = 'Propietario Verificado';
+    } else if (estado == 'PENDIENTE') {
+      color = const Color(0xFFF59E0B);
+      bgColor = const Color(0xFFFFFBEB);
+      icono = Icons.hourglass_empty_outlined;
+      label = 'Verificación en revisión';
+    } else {
+      color = _gris;
+      bgColor = _grisClaro;
+      icono = Icons.shield_outlined;
+      label = 'Cuenta no verificada';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icono, size: 14, color: color),
+        const SizedBox(width: 6),
+        Text(label,
+            style: TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+      ]),
+    );
+  }
+
+  Widget _buildTile({
+    required IconData icono,
+    required String label,
+    required String subtitulo,
+    VoidCallback? onTap,
+    Color? color,
+  }) {
+    final c = color ?? const Color(0xFF1F2937);
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      leading: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+            color: _grisClaro, borderRadius: BorderRadius.circular(10)),
+        child: Icon(icono, color: c, size: 18),
+      ),
+      title: Text(label,
+          style:
+              TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c)),
+      subtitle:
+          Text(subtitulo, style: const TextStyle(fontSize: 12, color: _gris)),
+      trailing:
+          onTap != null ? const Icon(Icons.chevron_right, color: _gris) : null,
+      onTap: onTap,
+    );
+  }
+
+  void _confirmarLogout(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(children: [
+          Icon(Icons.logout, color: _rojo, size: 20),
+          SizedBox(width: 8),
+          Text('Cerrar sesión', style: TextStyle(fontSize: 16)),
+        ]),
+        content: const Text('¿Estás seguro de que querés cerrar sesión?',
+            style: TextStyle(fontSize: 14)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final auth = Provider.of<AuthProvider>(context, listen: false);
+              await auth.logout();
+              if (!context.mounted) return;
+              Navigator.pushReplacementNamed(context, '/login');
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: _rojo),
+            child: const Text('Cerrar sesión',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+}

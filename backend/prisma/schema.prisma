@@ -1,0 +1,369 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TipoNotificacion {
+  MATCH_SOLICITUD
+  MATCH_ACEPTADO
+  CO_SOLICITUD
+  NUEVA_SOLICITUD           // ← nuevo
+  CO_SOLICITUD_PROPIETARIO  // ← nuevo
+  INMUEBLE_APROBADO
+  INMUEBLE_RECHAZADO
+  VERIFICACION_REVISION
+  VERIFICACION_APROBADA
+  VERIFICACION_RECHAZADA
+  GENERAL
+}
+enum Genero {
+  MASCULINO
+  FEMENINO
+  OTRO
+}
+
+enum Rol {
+  ARRENDATARIO
+  PROPIETARIO
+  ADMIN
+}
+
+enum TipoPunto {
+  UNIVERSIDAD
+  INSTITUTO
+  GENERAL
+}
+
+enum OpcionConvivencia {
+  SI
+  NO_TOLERO
+  INDIFERENTE
+}
+
+enum Cronotipo {
+  DIURNO
+  NOCTURNO
+}
+
+enum AmbienteEstudio {
+  SILENCIO
+  ACTIVO
+}
+
+enum PoliticaVisitas {
+  FRECUENTE
+  MODERADO
+  RESTRINGIDO
+}
+
+enum NivelOrden {
+  RIGUROSO
+  RELAJADO
+}
+
+enum EstadoMatch {
+  PENDIENTE
+  ACEPTADO
+  RECHAZADO
+}
+enum EstadoSolicitud {
+  PENDIENTE
+  ATENDIDA
+  RECHAZADA
+}
+
+enum EstadoCoSolicitud {
+  PENDIENTE
+  ACEPTADA
+  RECHAZADA
+}
+enum EstadoReporte {
+  PENDIENTE
+  RESUELTO
+  APELADO
+
+}
+enum TipoOferta {
+  ALQUILER
+  ANTICRETICO
+}
+model Usuario {
+  id            Int       @id @default(autoincrement())
+  nombre        String
+  email         String    @unique
+  password      String
+  rol           Rol       @default(ARRENDATARIO)
+  verificado    Boolean   @default(false)
+  activo        Boolean   @default(true)
+  telefono      String?
+  fotoPerfil    String?
+  puntoInteresId Int?
+  creadoEn      DateTime  @default(now())
+  actualizadoEn DateTime  @updatedAt
+  carrera      String?
+  genero       Genero?
+  ciudadOrigen String?
+  notificaciones Notificacion[]
+  listasFavoritos ListaFavoritos[]
+  inmueblesVistos InmuebleVisto[]
+  estadoVerificacion String  @default("NO_VERIFICADO")
+  ciNumero           String?
+  ciExtension        String?
+  fotoAnversoUrl     String?
+  fotoReversoUrl     String?
+  fotoRostroUrl      String?
+  nombreLegal        String?
+   reportesEnviados  Reporte[]          @relation("ReportesEnviados")
+
+  puntoInteres      PuntoInteres?      @relation(fields: [puntoInteresId], references: [id])
+  perfilConvivencia PerfilConvivencia? // ← UNA SOLA relación
+  solicitudes       Solicitud[]        @relation("SolicitudesArrendatario")
+  inmuebles         Inmueble[]
+
+  matchesEnviados   MatchConvivencia[] @relation("MatchesEnviados")
+  matchesRecibidos  MatchConvivencia[] @relation("MatchesRecibidos")
+  coSolicitudesEnviadas  CoSolicitud[]  @relation("CoSolicitudesEnviadas")
+  coSolicitudesRecibidas CoSolicitud[]  @relation("CoSolicitudesRecibidas")
+
+  @@map("usuarios")
+}
+
+model ListaFavoritos {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  usuarioId Int
+  creadoEn  DateTime @default(now())
+  usuario   Usuario            @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  inmuebles InmuebleFavorito[]
+  @@map("listas_favoritos")
+}
+
+model InmuebleFavorito {
+  id         Int      @id @default(autoincrement())
+  listaId    Int
+  inmuebleId Int
+  creadoEn   DateTime @default(now())
+  lista    ListaFavoritos @relation(fields: [listaId], references: [id], onDelete: Cascade)
+  inmueble Inmueble       @relation(fields: [inmuebleId], references: [id], onDelete: Cascade)
+  @@unique([listaId, inmuebleId])
+  @@map("inmuebles_favoritos")
+}
+
+model InmuebleVisto {
+  id         Int      @id @default(autoincrement())
+  usuarioId  Int
+  inmuebleId Int
+  vistoEn    DateTime @default(now())
+  usuario  Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  inmueble Inmueble @relation(fields: [inmuebleId], references: [id], onDelete: Cascade)
+  @@unique([usuarioId, inmuebleId])
+  @@map("inmuebles_vistos")
+}
+
+model Notificacion {
+  id        Int              @id @default(autoincrement())
+  usuarioId Int
+  titulo    String
+  mensaje   String
+  leido     Boolean          @default(false)
+  tipo      TipoNotificacion @default(GENERAL)
+  creadoEn  DateTime         @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("notificaciones")
+}
+
+model MatchConvivencia {
+  id            Int         @id @default(autoincrement())
+  solicitanteId Int
+  receptorId    Int
+  estado        EstadoMatch @default(PENDIENTE)
+  creadoEn      DateTime    @default(now())
+  actualizadoEn DateTime    @updatedAt
+
+  solicitante Usuario @relation("MatchesEnviados",   fields: [solicitanteId], references: [id], onDelete: Cascade)
+  receptor    Usuario @relation("MatchesRecibidos",  fields: [receptorId],    references: [id], onDelete: Cascade)
+
+  @@unique([solicitanteId, receptorId])
+  @@map("matches_convivencia")
+}
+
+model PerfilConvivencia {
+  id                 Int               @id @default(autoincrement())
+  usuarioId          Int               @unique
+  aceptaMascotas     OpcionConvivencia
+  fumaTabaco         OpcionConvivencia
+  cronotipo          Cronotipo
+  ambienteEstudio    AmbienteEstudio
+  politicaVisitas    PoliticaVisitas
+  nivelOrden         NivelOrden
+  descripcionSobreMi String
+  zonasPreferidas    String[]          @default([])
+  presupuestoMin     Int?
+  presupuestoMax     Int?
+  activo             Boolean           @default(true)   
+  creadoEn           DateTime          @default(now())
+  actualizadoEn      DateTime          @updatedAt
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("perfiles_convivencia")
+}
+
+model CoSolicitud {
+  id           Int               @id @default(autoincrement())
+  remitenteId  Int
+  receptorId   Int
+  inmuebleId   Int
+  estado       EstadoCoSolicitud @default(PENDIENTE)
+  creadoEn     DateTime          @default(now())
+  actualizadoEn DateTime         @updatedAt
+
+  remitente Usuario  @relation("CoSolicitudesEnviadas",  fields: [remitenteId], references: [id], onDelete: Cascade)
+  receptor  Usuario  @relation("CoSolicitudesRecibidas", fields: [receptorId],  references: [id], onDelete: Cascade)
+  inmueble  Inmueble @relation(fields: [inmuebleId], references: [id], onDelete: Cascade)
+
+  @@unique([remitenteId, receptorId, inmuebleId])
+  @@map("co_solicitudes")
+}
+
+model PuntoInteres {
+  id       Int       @id @default(autoincrement())
+  nombre   String
+  tipo     TipoPunto
+  latitud  Float
+  longitud Float
+
+  usuarios Usuario[]
+
+  @@unique([nombre])
+}
+
+model Inmueble {
+  id            Int      @id @default(autoincrement())
+  titulo        String
+  descripcion   String?
+  precio        Float
+  tipo          String
+  zona          String
+  direccion     String
+  latitud       Float?
+  longitud      Float?
+  disponible    Boolean    @default(true)
+  aprobado      Boolean    @default(false)
+  tipoOferta    TipoOferta @default(ALQUILER)
+  motivoRechazo  String?
+  desactivadoPorAdmin Boolean  @default(false)
+  enApelacion         Boolean  @default(false)
+  propietarioId Int
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+  favoritos InmuebleFavorito[]
+  vistos    InmuebleVisto[]
+  reportes    Reporte[]
+  luzIncluida      Boolean @default(false)
+  aguaIncluida     Boolean @default(false)
+  internetIncluido Boolean @default(false)
+  gasIncluido      Boolean @default(false)
+  tamano          Float?
+  piso            Int?
+  amoblado        Boolean?
+  permiteMascotas Boolean?
+  generoPermitido String?
+  numDormitorios Int?
+  numBanos       Int?
+  tieneParqueo   Boolean?
+  habitantesMax  Int?
+  habitacionesTotales     Int?
+  habitacionesDisponibles Int?
+  banoCompartido          Boolean?
+  soloEstudiantes         Boolean?
+  generoConvivientes      String?
+  edadMinima              Int?
+  edadMaxima              Int?
+  reglasComunes           String?
+  observaciones           String?
+
+  propietario Usuario  @relation(fields: [propietarioId], references: [id])
+  imagenes    Imagen[]
+   apelacion    Apelacion?
+  solicitudes Solicitud[]
+  coSolicitudes CoSolicitud[]
+
+  @@map("inmuebles")
+}
+model CodigoRecuperacion {
+  id        Int      @id @default(autoincrement())
+  email     String
+  codigo    String
+  expiresAt DateTime
+  usado     Boolean  @default(false)
+  creadoEn  DateTime @default(now())
+
+  @@map("codigos_recuperacion")
+}
+
+model Imagen {
+  id         Int      @id @default(autoincrement())
+  url        String
+  publicId   String
+  inmuebleId Int
+
+  inmueble Inmueble @relation(fields: [inmuebleId], references: [id], onDelete: Cascade)
+
+  @@map("imagenes")
+}
+
+model Solicitud {
+  id             Int             @id @default(autoincrement())
+  arrendatarioId Int
+  inmuebleId     Int
+  atendida       Boolean         @default(false)
+  estado         EstadoSolicitud @default(PENDIENTE)
+  coSolicitudId  Int?
+  creadoEn       DateTime        @default(now())
+  actualizadoEn  DateTime        @updatedAt
+
+  arrendatario Usuario  @relation("SolicitudesArrendatario", fields: [arrendatarioId], references: [id], onDelete: Cascade)
+  inmueble     Inmueble @relation(fields: [inmuebleId], references: [id], onDelete: Cascade)
+
+  @@unique([arrendatarioId, inmuebleId])
+}
+
+model Reporte {
+  id            Int           @id @default(autoincrement())
+  inmuebleId    Int
+  reportanteId  Int
+  motivo        String
+  comentario    String?
+  estado        EstadoReporte @default(PENDIENTE)
+  sancionado    Boolean       @default(false)
+  creadoEn      DateTime      @default(now())
+  resueltoEn    DateTime?
+
+  inmueble   Inmueble @relation(fields: [inmuebleId], references: [id], onDelete: Cascade)
+  reportante Usuario  @relation("ReportesEnviados", fields: [reportanteId], references: [id], onDelete: Cascade)
+
+   apelacion Apelacion?
+
+  @@map("reportes")
+}
+
+model Apelacion {
+  id         Int      @id @default(autoincrement())
+  reporteId  Int      @unique
+  inmuebleId Int      @unique
+  texto      String
+  imagenes   Json?
+  creadoEn   DateTime @default(now())
+
+  reporte  Reporte  @relation(fields: [reporteId], references: [id], onDelete: Cascade)
+  inmueble Inmueble @relation(fields: [inmuebleId], references: [id], onDelete: Cascade)
+
+  @@map("apelaciones")
+}

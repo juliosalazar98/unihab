@@ -1,0 +1,14 @@
+﻿node_modules/
+**/node_modules/
+.env
+**/.env
+google-services.json
+**/google-services.json
+*.keystore
+*.jks
+build/
+**/build/
+dist/
+.dart_tool/
+*.log
+pruebas.http
